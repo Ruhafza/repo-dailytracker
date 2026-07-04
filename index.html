@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daybook — Daily Tracker</title>
+<meta name="description" content="A daily tracker for tasks, habits, mood, health, and learning — synced securely to your account.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%93%96</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,900&family=Work+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cover: #1E2B26;
+    --cover-alt: #24352E;
+    --paper: #F4EFE0;
+    --paper-line: #DDD3B8;
+    --ink: #2B2620;
+    --cream: #EDE6D3;
+    --cream-dim: #B9B39E;
+    --brass: #C69A4E;
+    --brass-dim: #8C7038;
+    --brick: #B5493F;
+    --sage: #7C9873;
+    --radius: 14px;
+    --shadow: 0 10px 26px rgba(0,0,0,0.28);
+    --font-display: 'Fraunces', serif;
+    --font-body: 'Work Sans', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--cover);
+    background-image: radial-gradient(circle at 18% -10%, var(--cover-alt), var(--cover) 55%);
+    color: var(--cream);
+    font-family: var(--font-body);
+    min-height: 100vh;
+  }
+  h1, h2 { margin: 0; }
+  button { font-family: inherit; }
+  [hidden] { display: none !important; }
+
+  /* Loading + Auth */
+  .initial-loading {
+    display: flex; align-items: center; justify-content: center; min-height: 100vh;
+    font-family: var(--font-mono); letter-spacing: 0.12em; color: var(--cream-dim); font-size: 0.85rem;
+  }
+  .auth-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+  .auth-card {
+    background: var(--paper); color: var(--ink); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 34px 28px; max-width: 360px; width: 100%; text-align: center;
+  }
+  .auth-tagline { font-size: 0.85rem; opacity: 0.7; margin: 2px 0 22px; }
+  #authForm { display: flex; flex-direction: column; gap: 12px; }
+  #authForm input {
+    border: 1px solid var(--paper-line); background: rgba(255,255,255,0.5); border-radius: 8px;
+    padding: 10px 12px; font-family: var(--font-body); font-size: 0.9rem; color: var(--ink);
+  }
+  #authForm input:focus { outline: 2px solid var(--brass); outline-offset: 1px; border-color: transparent; }
+  #authForm button[type=submit] {
+    background: var(--ink); color: var(--paper); border: none; border-radius: 8px; padding: 11px;
+    font-size: 0.9rem; font-weight: 600; cursor: pointer; margin-top: 4px; transition: background 0.15s ease;
+  }
+  #authForm button[type=submit]:hover { background: var(--brick); }
+  #authForm button[type=submit]:disabled { opacity: 0.6; cursor: not-allowed; }
+  .auth-error { color: var(--brick); font-size: 0.82rem; margin: 14px 0 0; }
+  .auth-switch { font-size: 0.82rem; margin: 16px 0 0; opacity: 0.85; }
+
+  /* Header */
+  .site-header {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px;
+    padding: 16px 28px;
+    background: rgba(30,43,38,0.92);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid rgba(198,154,78,0.25);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-mark { color: var(--brass); font-size: 1.25rem; }
+  .brand h1 {
+    font-family: var(--font-display); font-weight: 600; font-size: 1.35rem;
+    letter-spacing: 0.01em; color: var(--cream);
+  }
+  .date-nav { display: flex; align-items: center; gap: 10px; }
+  .nav-btn {
+    background: none; border: 1px solid rgba(237,230,211,0.3); color: var(--cream);
+    width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+    font-size: 0.85rem; transition: all 0.2s ease;
+  }
+  .nav-btn:hover:not(:disabled) { background: rgba(198,154,78,0.2); border-color: var(--brass); }
+  .nav-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+  .date-display { text-align: center; min-width: 165px; }
+  .date-display .weekday {
+    display: block; font-family: var(--font-mono); font-size: 0.68rem;
+    letter-spacing: 0.15em; color: var(--brass);
+  }
+  .date-display .main-date { display: block; font-family: var(--font-display); font-size: 1.1rem; }
+  .ghost-btn {
+    background: none; border: 1px solid var(--brass); color: var(--brass);
+    padding: 6px 14px; border-radius: 20px; font-size: 0.78rem; cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .ghost-btn:hover { background: var(--brass); color: var(--cover); }
+
+  /* Stat rail */
+  .stat-rail { display: flex; flex-wrap: wrap; gap: 22px; padding: 16px 28px; justify-content: center; }
+  .stat { text-align: center; }
+  .stat-num { display: block; font-family: var(--font-mono); font-size: 1.25rem; color: var(--brass); }
+  .stat-label {
+    display: block; font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--cream-dim); margin-top: 2px;
+  }
+
+  /* Grid */
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 22px; padding: 10px 28px 30px; max-width: 1200px; margin: 0 auto;
+  }
+  .card {
+    background: var(--paper); color: var(--ink); border-radius: var(--radius);
+    padding: 20px 20px 16px; box-shadow: var(--shadow); position: relative;
+    animation: rise 0.5s ease backwards;
+  }
+  .card::before {
+    content: ''; position: absolute; inset: 6px -6px -6px 6px;
+    background: rgba(0,0,0,0.16); border-radius: var(--radius); z-index: -1;
+  }
+  .grid .card:nth-child(1) { animation-delay: 0.04s; }
+  .grid .card:nth-child(2) { animation-delay: 0.09s; }
+  .grid .card:nth-child(3) { animation-delay: 0.14s; }
+  .grid .card:nth-child(4) { animation-delay: 0.19s; }
+  .grid .card:nth-child(5) { animation-delay: 0.24s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  .card h2 { display: flex; align-items: center; gap: 8px; }
+  .card h2 .icon { color: var(--brick); display: flex; flex-shrink: 0; }
+  .card h2 .label {
+    font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--brass-dim);
+  }
+  .card-count { font-family: var(--font-mono); font-size: 0.82rem; opacity: 0.6; margin-left: auto; }
+  .card-divider { border: none; border-top: 1px dashed var(--paper-line); margin: 10px 0 14px; }
+
+  ul.item-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 230px; overflow-y: auto; }
+  .task-row, .habit-row {
+    cursor: pointer; display: flex; align-items: center; gap: 10px;
+    padding: 6px 4px; border-radius: 8px; transition: background 0.15s;
+  }
+  .task-row:hover, .habit-row:hover { background: rgba(0,0,0,0.04); }
+  .check-btn {
+    width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--brass-dim);
+    background: transparent; color: var(--paper); display: flex; align-items: center;
+    justify-content: center; cursor: pointer; flex-shrink: 0; font-size: 0.78rem;
+    transition: all 0.15s ease;
+  }
+  .task-row.done .check-btn, .habit-row.done .check-btn {
+    background: var(--sage); border-color: var(--sage); transform: scale(1.06);
+  }
+  .task-text, .habit-text { flex: 1; font-size: 0.92rem; }
+  .task-row.done .task-text, .habit-row.done .habit-text { text-decoration: line-through; opacity: 0.55; }
+  .remove-btn {
+    background: none; border: none; color: var(--ink); opacity: 0.3; font-size: 1.15rem;
+    cursor: pointer; line-height: 1; padding: 2px 6px; transition: opacity 0.15s;
+  }
+  .remove-btn:hover { opacity: 1; color: var(--brick); }
+  .streak-badge {
+    font-family: var(--font-mono); font-size: 0.68rem; background: var(--cover); color: var(--brass);
+    border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0;
+  }
+  .empty-state { opacity: 0.55; font-size: 0.84rem; font-style: italic; padding: 8px 4px; }
+
+  .add-row { display: flex; gap: 8px; margin-top: 12px; }
+  .add-row input {
+    flex: 1; border: 1px solid var(--paper-line); background: rgba(255,255,255,0.5);
+    border-radius: 8px; padding: 8px 10px; font-family: var(--font-body); font-size: 0.87rem; color: var(--ink);
+  }
+  .add-row input:focus { outline: 2px solid var(--brass); outline-offset: 1px; border-color: transparent; }
+  .add-row button {
+    background: var(--ink); color: var(--paper); border: none; border-radius: 8px;
+    padding: 8px 16px; cursor: pointer; font-size: 0.84rem; font-weight: 600; transition: background 0.15s;
+  }
+  .add-row button:hover { background: var(--brick); }
+  .clear-link {
+    background: none; border: none; color: var(--ink); opacity: 0.45; font-size: 0.74rem;
+    cursor: pointer; margin-top: 8px; text-decoration: underline; padding: 0;
+  }
+
+  .mood-row { display: flex; justify-content: space-between; gap: 4px; margin-bottom: 14px; }
+  .mood-btn {
+    background: none; border: 1.5px solid transparent; border-radius: 50%; color: var(--ink);
+    opacity: 0.45; cursor: pointer; padding: 2px; transition: all 0.15s ease;
+  }
+  .mood-btn:hover { opacity: 0.8; }
+  .mood-btn.selected { opacity: 1; border-color: var(--brass); background: rgba(198,154,78,0.15); color: var(--brick); transform: scale(1.08); }
+  textarea#moodNote {
+    width: 100%; border: 1px solid var(--paper-line); background: rgba(255,255,255,0.5);
+    border-radius: 8px; padding: 8px 10px; font-family: var(--font-body); font-size: 0.85rem;
+    color: var(--ink); resize: vertical; min-height: 44px;
+  }
+  textarea#moodNote:focus { outline: 2px solid var(--brass); outline-offset: 1px; border-color: transparent; }
+  .mood-history { display: flex; justify-content: space-between; margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--paper-line); }
+  .mood-hist-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .mood-hist-label { font-family: var(--font-mono); font-size: 0.6rem; color: var(--brass-dim); }
+
+  .health-row { margin-bottom: 14px; }
+  .health-row label { display: block; font-size: 0.8rem; margin-bottom: 6px; font-weight: 600; opacity: 0.8; }
+  .water-control { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .water-control button {
+    width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--brass-dim);
+    background: none; cursor: pointer; font-size: 1rem; color: var(--ink); transition: all 0.15s ease;
+  }
+  .water-control button:hover { background: var(--brass); color: var(--paper); border-color: var(--brass); }
+  .mono-num { font-family: var(--font-mono); min-width: 46px; text-align: center; }
+  .water-glasses { display: flex; gap: 4px; flex-wrap: wrap; }
+  .drop { opacity: 0.25; color: var(--brass-dim); display: inline-flex; }
+  .drop.filled { opacity: 1; color: var(--brass); }
+  input[type=number] {
+    width: 100%; border: 1px solid var(--paper-line); background: rgba(255,255,255,0.5);
+    border-radius: 8px; padding: 8px 10px; font-family: var(--font-mono); font-size: 0.9rem; color: var(--ink);
+  }
+  input[type=number]:focus { outline: 2px solid var(--brass); outline-offset: 1px; border-color: transparent; }
+
+  .learning-log { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--paper-line); }
+  .log-heading { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--brass-dim); margin: 0 0 8px; }
+  .log-item { display: flex; gap: 10px; font-size: 0.82rem; margin-bottom: 6px; align-items: baseline; }
+  .log-date { font-family: var(--font-mono); color: var(--brass-dim); flex-shrink: 0; font-size: 0.7rem; }
+
+  .daybook-overview { max-width: 1200px; margin: 10px auto 0; padding: 20px 28px 40px; }
+  .daybook-overview h2 {
+    font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--brass); text-align: center; margin-bottom: 18px;
+  }
+  .stamp-row {
+    display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;
+    border-top: 1px dotted rgba(237,230,211,0.25); padding-top: 20px;
+  }
+  .stamp {
+    background: none; border: none; cursor: pointer; display: flex; flex-direction: column;
+    align-items: center; gap: 6px; padding: 4px; color: inherit;
+  }
+  .stamp-mark {
+    width: 28px; height: 28px; border-radius: 50%; display: block;
+    border: 1.5px dashed rgba(237,230,211,0.3);
+    transform: rotate(var(--angle));
+    background: radial-gradient(circle, var(--brass) 0%, var(--brass) 68%, transparent 70%);
+    opacity: var(--fill-opacity);
+    transition: transform 0.2s ease;
+  }
+  .stamp:hover .stamp-mark { transform: rotate(var(--angle)) scale(1.15); }
+  .stamp.is-today .stamp-mark { border-color: var(--brick); border-style: solid; }
+  .stamp-mark.stamp-full { background: radial-gradient(circle, var(--sage) 0%, var(--sage) 68%, transparent 70%); }
+  .stamp-date { font-family: var(--font-mono); font-size: 0.64rem; color: var(--cream-dim); }
+  .stamp.is-viewed .stamp-date { color: var(--brass); font-weight: bold; }
+
+  .site-footer { text-align: center; padding: 10px 20px 34px; font-size: 0.74rem; color: var(--cream-dim); }
+  .site-footer p { margin: 6px 0; }
+  .text-link { background: none; border: none; color: var(--brick); text-decoration: underline; cursor: pointer; font-size: inherit; font-family: inherit; padding: 0; }
+
+  @media (max-width: 640px) {
+    .site-header { padding: 14px 16px; }
+    .grid { padding: 10px 16px 24px; gap: 16px; }
+    .stat-rail { padding: 12px 16px; gap: 14px; }
+    .daybook-overview { padding: 16px 16px 30px; }
+    .date-display { min-width: 130px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+  button:focus-visible, input:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--brass); outline-offset: 2px;
+  }
+</style>
+</head>
+<body>
+
+<div id="initialLoading" class="initial-loading"><p>Loading Daybook…</p></div>
+
+<div id="authScreen" class="auth-screen" hidden>
+  <div class="auth-card">
+    <div class="brand" style="justify-content:center;margin-bottom:6px;"><span class="brand-mark">✦</span><h1>Daybook</h1></div>
+    <p class="auth-tagline">Your daily log, synced to your account.</p>
+    <form id="authForm" onsubmit="handleAuthSubmit(event)">
+      <input id="authEmail" type="email" placeholder="Email" required autocomplete="email">
+      <input id="authPassword" type="password" placeholder="Password (6+ characters)" required autocomplete="current-password" minlength="6">
+      <button type="submit" id="authSubmitBtn">Log in</button>
+    </form>
+    <p class="auth-error" id="authError" hidden></p>
+    <p class="auth-switch"><span id="authSwitchText">New here?</span> <button type="button" class="text-link" id="authSwitchBtn" onclick="toggleAuthMode()">Create an account</button></p>
+  </div>
+</div>
+
+<div id="appRoot" hidden>
+
+  <header class="site-header">
+    <div class="brand"><span class="brand-mark">✦</span><h1>Daybook</h1></div>
+    <nav class="date-nav">
+      <button class="nav-btn" onclick="goPrevDay()" aria-label="Previous day">◀</button>
+      <div class="date-display">
+        <span class="weekday" id="dateWeekday"></span>
+        <span class="main-date" id="dateMain"></span>
+      </div>
+      <button class="nav-btn" id="nextDay" onclick="goNextDay()" aria-label="Next day">▶</button>
+      <button class="ghost-btn" id="jumpToday" onclick="goToday()">Today</button>
+    </nav>
+  </header>
+
+  <section class="stat-rail" id="statRail"></section>
+
+  <main class="grid">
+
+    <section class="card" id="card-tasks">
+      <h2><span class="icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></span><span class="label">Tasks</span><span class="card-count" id="taskCount">0/0</span></h2>
+      <hr class="card-divider">
+      <ul class="item-list" id="taskList"></ul>
+      <div class="add-row">
+        <input id="newTaskInput" type="text" placeholder="Add a task…" onkeydown="if(event.key==='Enter')addTask()">
+        <button onclick="addTask()">Add</button>
+      </div>
+      <button class="clear-link" onclick="clearCompletedTasks()">Clear completed</button>
+    </section>
+
+    <section class="card" id="card-habits">
+      <h2><span class="icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M12 2c1 3-2 4-2 7a3 3 0 006 0c0-1-1-2-1-2 2 1 3 4 3 6a6 6 0 11-12 0c0-4 3-6 6-11z"/></svg></span><span class="label">Habits</span><span class="card-count" id="habitCount">0/0</span></h2>
+      <hr class="card-divider">
+      <ul class="item-list" id="habitList"></ul>
+      <div class="add-row">
+        <input id="newHabitInput" type="text" placeholder="Add a habit…" onkeydown="if(event.key==='Enter')addHabit()">
+        <button onclick="addHabit()">Add</button>
+      </div>
+    </section>
+
+    <section class="card" id="card-mood">
+      <h2><span class="icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="1" fill="currentColor" stroke="none"/><path d="M8 15c1.5 1.5 6.5 1.5 8 0" stroke-linecap="round"/></svg></span><span class="label">Mood &amp; Wellness</span></h2>
+      <hr class="card-divider">
+      <div class="mood-row" id="moodRow"></div>
+      <textarea id="moodNote" placeholder="What's affecting your mood? (optional)" oninput="saveMoodNote(this.value)"></textarea>
+      <div class="mood-history" id="moodHistory"></div>
+    </section>
+
+    <section class="card" id="card-health">
+      <h2><span class="icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M12 2C9 7 5 11 5 15a7 7 0 0014 0c0-4-4-8-7-13z"/></svg></span><span class="label">Health</span></h2>
+      <hr class="card-divider">
+      <div class="health-row">
+        <label>Water</label>
+        <div class="water-control">
+          <button onclick="adjustWater(-1)" aria-label="Remove a glass">−</button>
+          <span id="waterCount" class="mono-num"></span>
+          <button onclick="adjustWater(1)" aria-label="Add a glass">+</button>
+        </div>
+        <div class="water-glasses" id="waterGlasses"></div>
+      </div>
+      <div class="health-row">
+        <label for="sleepInput">Sleep (hours)</label>
+        <input id="sleepInput" type="number" min="0" max="24" step="0.5" placeholder="0" oninput="saveSleep(this.value)">
+      </div>
+      <div class="health-row" style="margin-bottom:0;">
+        <label for="exerciseInput">Exercise (minutes)</label>
+        <input id="exerciseInput" type="number" min="0" max="600" step="5" placeholder="0" oninput="saveExercise(this.value)">
+      </div>
+    </section>
+
+    <section class="card" id="card-learning">
+      <h2><span class="icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-2-1.5-5-2-8-1v13c3-1 6-.5 8 1 2-1.5 5-2 8-1V5c-3-1-6-.5-8 1z"/><path d="M12 6v13"/></svg></span><span class="label">Self-Learning</span></h2>
+      <hr class="card-divider">
+      <div class="health-row">
+        <label for="learningMinutes">Minutes spent learning</label>
+        <input id="learningMinutes" type="number" min="0" step="5" placeholder="0" oninput="saveLearningMinutes(this.value)">
+      </div>
+      <div class="health-row" style="margin-bottom:0;">
+        <label for="learningNote">What did you learn?</label>
+        <input id="learningNote" type="text" placeholder="A topic, an insight, a link…" oninput="saveLearningNote(this.value)">
+      </div>
+      <div class="learning-log" id="learningLog"></div>
+    </section>
+
+  </main>
+
+  <section class="daybook-overview">
+    <h2>Last 14 Days</h2>
+    <div class="stamp-row" id="stampRow"></div>
+  </section>
+
+  <footer class="site-footer">
+    <p id="accountInfo"></p>
+    <p><button class="text-link" onclick="handleLogout()">Log out</button> · <button class="text-link" onclick="confirmResetAllData()">Delete all my data</button></p>
+  </footer>
+
+</div>
+
+<!-- Provides window.FIREBASE_CONFIG. This file is gitignored — see SETUP.md. -->
+<script src="firebase-config.js"></script>
+
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js';
+  import {
+    getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
+    signInWithEmailAndPassword, signOut
+  } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
+  import {
+    getFirestore, doc, setDoc, collection, query, where, documentId,
+    onSnapshot, getDocs, deleteDoc
+  } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js';
+
+  const firebaseConfig = window.FIREBASE_CONFIG;
+  if (!firebaseConfig) {
+    document.getElementById('initialLoading').innerHTML =
+      '<p style="max-width:380px;text-align:center;padding:0 20px;line-height:1.6;">' +
+      'Missing <code>firebase-config.js</code>. See <code>SETUP.md</code> — for local testing, ' +
+      'copy <code>firebase-config.template.js</code> to <code>firebase-config.js</code> and fill in your values.</p>';
+    throw new Error('Missing window.FIREBASE_CONFIG — see SETUP.md');
+  }
+
+  const firebaseApp = initializeApp(firebaseConfig);
+  const auth = getAuth(firebaseApp);
+  const db = getFirestore(firebaseApp);
+
+  window.fb = {
+    auth, db, onAuthStateChanged, createUserWithEmailAndPassword,
+    signInWithEmailAndPassword, signOut, doc, setDoc, collection,
+    query, where, documentId, onSnapshot, getDocs, deleteDoc
+  };
+  window.dispatchEvent(new Event('fb-ready'));
+</script>
+
+
+<script>
+// ---------- Constants ----------
+const MOOD_LABELS = ['Rough', 'Low', 'Okay', 'Good', 'Great'];
+const DAYS_WINDOW = 120; // how many days back the live sync window covers
+
+// ---------- Helpers ----------
+function pad2(n) { return String(n).padStart(2, '0'); }
+function formatDate(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+function startOfDay(d) { const n = new Date(d); n.setHours(0, 0, 0, 0); return n; }
+function daysAgo(n) { const d = startOfDay(new Date()); d.setDate(d.getDate() - n); return d; }
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function escapeHtml(str) { const div = document.createElement('div'); div.textContent = str ?? ''; return div.innerHTML; }
+function pseudoAngle(dateStr) {
+  let hash = 0;
+  for (let i = 0; i < dateStr.length; i++) hash = (hash * 31 + dateStr.charCodeAt(i)) >>> 0;
+  return (hash % 17) - 8;
+}
+function setValueIfNotFocused(id, value) {
+  const el = document.getElementById(id);
+  if (el && document.activeElement !== el) el.value = value;
+}
+function friendlyAuthError(err) {
+  const code = (err && err.code) || '';
+  if (code.includes('email-already-in-use')) return 'That email already has an account. Try logging in instead.';
+  if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) return 'Incorrect email or password.';
+  if (code.includes('weak-password')) return 'Password should be at least 6 characters.';
+  if (code.includes('invalid-email')) return 'Please enter a valid email address.';
+  if (code.includes('too-many-requests')) return 'Too many attempts. Please wait a moment and try again.';
+  return 'Something went wrong. Please try again.';
+}
+
+// ---------- State ----------
+let currentDate = startOfDay(new Date());
+let currentUser = null;
+let authMode = 'login';
+let userDocUnsub = null;
+let daysUnsub = null;
+const debounceTimers = {};
+const state = { habits: [], days: {} };
+function currentDateStr() { return formatDate(currentDate); }
+
+function emptyDayEntry() {
+  return {
+    tasks: [], habits: {},
+    mood: { value: null, note: '' },
+    health: { water: 0, waterGoal: 8, sleep: null, exercise: null },
+    learning: { minutes: 0, note: '' }
+  };
+}
+// Adapts the flat Firestore day-document shape into the nested shape the UI code uses.
+function peekDayEntry(ds) {
+  const e = state.days[ds];
+  if (!e) return emptyDayEntry();
+  return {
+    tasks: e.tasks || [],
+    habits: e.habits || {},
+    mood: { value: e.moodValue ?? null, note: e.moodNote || '' },
+    health: {
+      water: e.water ?? 0,
+      waterGoal: e.waterGoal ?? 8,
+      sleep: e.sleep ?? null,
+      exercise: e.exercise ?? null
+    },
+    learning: { minutes: e.learningMinutes ?? 0, note: e.learningNote || '' }
+  };
+}
+
+// ---------- Firebase: init & auth ----------
+let fbReadyFired = false;
+window.addEventListener('fb-ready', () => { fbReadyFired = true; initApp(); });
+
+// If the Firebase module script never loads at all (most commonly: the file was opened
+// directly as file:// instead of served over http/https — browsers block module <script>
+// imports on file://), 'fb-ready' will never fire. Catch that instead of hanging forever.
+setTimeout(() => {
+  if (!fbReadyFired) showLoadError('load');
+}, 6000);
+
+function initApp() {
+  const { auth, onAuthStateChanged } = window.fb;
+  let authResolved = false;
+  onAuthStateChanged(auth, (user) => {
+    authResolved = true;
+    document.getElementById('initialLoading').hidden = true;
+    if (user) {
+      currentUser = user;
+      document.getElementById('authScreen').hidden = true;
+      document.getElementById('appRoot').hidden = false;
+      renderHeader();
+      updateAccountInfo();
+      attachFirestoreListeners(user.uid);
+    } else {
+      currentUser = null;
+      detachFirestoreListeners();
+      document.getElementById('appRoot').hidden = true;
+      document.getElementById('authScreen').hidden = false;
+    }
+  }, (error) => {
+    authResolved = true;
+    console.error('Auth error:', error);
+    showConfigError();
+  });
+  // Covers the case where the SDK loaded fine but the actual auth check never resolves
+  // (e.g. an ad blocker or firewall silently blocking Firebase's own API domains).
+  setTimeout(() => {
+    if (!authResolved) showLoadError('auth');
+  }, 6000);
+}
+
+function showConfigError() {
+  document.getElementById('initialLoading').hidden = true;
+  document.getElementById('appRoot').hidden = true;
+  document.getElementById('authScreen').hidden = false;
+  const errorEl = document.getElementById('authError');
+  errorEl.textContent = "Could not connect to Firebase. Make sure you've added your project config near the top of the script.";
+  errorEl.hidden = false;
+}
+
+function showLoadError(kind) {
+  if (document.getElementById('initialLoading').hidden) return; // already past loading, don't clobber
+  const reasons = kind === 'load'
+    ? `<li>You opened this file directly (double-clicked it, URL starts with <code>file://</code>). Browsers block Firebase's imports in that mode — deploy to Netlify, or run a local server, and open it over http/https instead.</li>
+       <li>No internet connection right now.</li>
+       <li>An ad blocker or privacy extension is blocking Google/Firebase scripts.</li>`
+    : `<li>An ad blocker, firewall, or privacy extension is blocking Firebase's servers.</li>
+       <li>No internet connection right now.</li>
+       <li>Your Firebase config near the top of the script hasn't been filled in yet.</li>`;
+  document.getElementById('initialLoading').innerHTML = `
+    <div style="max-width:420px;text-align:center;padding:0 24px;">
+      <p style="font-family:var(--font-display);font-size:1.05rem;margin-bottom:12px;color:var(--cream);">Daybook can't reach Firebase</p>
+      <ul style="text-align:left;font-size:0.8rem;line-height:1.7;color:var(--cream-dim);opacity:0.9;padding-left:18px;margin:0;">${reasons}</ul>
+    </div>`;
+}
+
+async function handleAuthSubmit(e) {
+  e.preventDefault();
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errorEl = document.getElementById('authError');
+  const submitBtn = document.getElementById('authSubmitBtn');
+  errorEl.hidden = true;
+  submitBtn.disabled = true;
+  const { auth, createUserWithEmailAndPassword, signInWithEmailAndPassword, doc, setDoc, db } = window.fb;
+  try {
+    if (authMode === 'signup') {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      const starterHabits = [
+        { id: genId(), name: 'Move your body' },
+        { id: genId(), name: 'Read for 10 minutes' },
+        { id: genId(), name: 'No phone after 10pm' }
+      ];
+      await setDoc(doc(db, 'users', cred.user.uid), { habits: starterHabits });
+    } else {
+      await signInWithEmailAndPassword(auth, email, password);
+    }
+  } catch (err) {
+    console.error(err);
+    errorEl.textContent = friendlyAuthError(err);
+    errorEl.hidden = false;
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+
+function toggleAuthMode() {
+  authMode = authMode === 'login' ? 'signup' : 'login';
+  document.getElementById('authSubmitBtn').textContent = authMode === 'login' ? 'Log in' : 'Create account';
+  document.getElementById('authSwitchText').textContent = authMode === 'login' ? 'New here?' : 'Already have an account?';
+  document.getElementById('authSwitchBtn').textContent = authMode === 'login' ? 'Create an account' : 'Log in';
+  document.getElementById('authError').hidden = true;
+}
+
+async function handleLogout() {
+  const { auth, signOut } = window.fb;
+  try { await signOut(auth); } catch (e) { console.error(e); }
+}
+
+function updateAccountInfo() {
+  const el = document.getElementById('accountInfo');
+  if (el) el.textContent = currentUser ? `Signed in as ${currentUser.email} · synced to your account` : '';
+}
+
+// ---------- Firebase: Firestore sync ----------
+function attachFirestoreListeners(uid) {
+  const { db, doc, onSnapshot, collection, query, where, documentId } = window.fb;
+
+  userDocUnsub = onSnapshot(doc(db, 'users', uid), (docSnap) => {
+    state.habits = (docSnap.exists() && docSnap.data().habits) ? docSnap.data().habits : [];
+    render();
+  }, (err) => console.error('Habits listener error:', err));
+
+  const cutoff = formatDate(daysAgo(DAYS_WINDOW));
+  const daysQuery = query(collection(db, 'users', uid, 'days'), where(documentId(), '>=', cutoff));
+  daysUnsub = onSnapshot(daysQuery, (snap) => {
+    const newDays = {};
+    snap.forEach((d) => { newDays[d.id] = d.data(); });
+    state.days = newDays;
+    render();
+  }, (err) => console.error('Days listener error:', err));
+}
+
+function detachFirestoreListeners() {
+  if (userDocUnsub) userDocUnsub();
+  if (daysUnsub) daysUnsub();
+  userDocUnsub = null;
+  daysUnsub = null;
+  state.habits = [];
+  state.days = {};
+}
+
+function saveDayField(ds, partial) {
+  if (!currentUser) return;
+  const { db, doc, setDoc } = window.fb;
+  setDoc(doc(db, 'users', currentUser.uid, 'days', ds), partial, { merge: true })
+    .catch((err) => console.error('Save failed:', err));
+}
+function saveHabitsField(newHabits) {
+  if (!currentUser) return;
+  const { db, doc, setDoc } = window.fb;
+  setDoc(doc(db, 'users', currentUser.uid), { habits: newHabits }, { merge: true })
+    .catch((err) => console.error('Save failed:', err));
+}
+function debouncedSaveField(fieldName, val, delay) {
+  clearTimeout(debounceTimers[fieldName]);
+  debounceTimers[fieldName] = setTimeout(() => {
+    saveDayField(currentDateStr(), { [fieldName]: val });
+  }, delay || 600);
+}
+
+async function confirmResetAllData() {
+  if (!currentUser) return;
+  if (!confirm('This will permanently delete all your tracked data from your account. This cannot be undone. Continue?')) return;
+  const { db, doc, setDoc, collection, getDocs, deleteDoc } = window.fb;
+  try {
+    const daysSnap = await getDocs(collection(db, 'users', currentUser.uid, 'days'));
+    await Promise.all(daysSnap.docs.map((d) => deleteDoc(d.ref)));
+    await setDoc(doc(db, 'users', currentUser.uid), { habits: [] });
+  } catch (e) {
+    console.error(e);
+    alert('Something went wrong deleting your data. Please try again.');
+  }
+}
+
+// ---------- Navigation ----------
+function goPrevDay() { currentDate = new Date(currentDate); currentDate.setDate(currentDate.getDate() - 1); render(); }
+function goNextDay() {
+  const today = startOfDay(new Date());
+  if (currentDate.getTime() < today.getTime()) {
+    currentDate = new Date(currentDate); currentDate.setDate(currentDate.getDate() + 1); render();
+  }
+}
+function goToday() { currentDate = startOfDay(new Date()); render(); }
+function jumpToDate(ds) {
+  const parts = ds.split('-').map(Number);
+  currentDate = new Date(parts[0], parts[1] - 1, parts[2]);
+  render();
+}
+
+// ---------- Mutations: Tasks ----------
+function addTask() {
+  const input = document.getElementById('newTaskInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  const entry = peekDayEntry(currentDateStr());
+  saveDayField(currentDateStr(), { tasks: [...entry.tasks, { id: genId(), text, done: false }] });
+}
+function toggleTask(id) {
+  const entry = peekDayEntry(currentDateStr());
+  saveDayField(currentDateStr(), { tasks: entry.tasks.map((t) => t.id === id ? { ...t, done: !t.done } : t) });
+}
+function removeTask(id) {
+  const entry = peekDayEntry(currentDateStr());
+  saveDayField(currentDateStr(), { tasks: entry.tasks.filter((t) => t.id !== id) });
+}
+function clearCompletedTasks() {
+  const entry = peekDayEntry(currentDateStr());
+  saveDayField(currentDateStr(), { tasks: entry.tasks.filter((t) => !t.done) });
+}
+
+// ---------- Mutations: Habits ----------
+function addHabit() {
+  const input = document.getElementById('newHabitInput');
+  const name = input.value.trim();
+  if (!name) return;
+  input.value = '';
+  saveHabitsField([...state.habits, { id: genId(), name }]);
+}
+function toggleHabit(id) {
+  const entry = peekDayEntry(currentDateStr());
+  saveDayField(currentDateStr(), { habits: { ...entry.habits, [id]: !entry.habits[id] } });
+}
+function removeHabit(id) {
+  if (!confirm('Remove this habit from your list? Past history stays recorded.')) return;
+  saveHabitsField(state.habits.filter((h) => h.id !== id));
+}
+function getHabitStreak(id) {
+  let streak = 0;
+  let cursor = startOfDay(new Date());
+  const todayEntry = state.days[formatDate(cursor)];
+  const doneToday = !!(todayEntry && todayEntry.habits && todayEntry.habits[id]);
+  if (!doneToday) cursor.setDate(cursor.getDate() - 1);
+  while (true) {
+    const ds = formatDate(cursor);
+    const e = state.days[ds];
+    if (e && e.habits && e.habits[id]) { streak++; cursor.setDate(cursor.getDate() - 1); }
+    else break;
+  }
+  return streak;
+}
+
+// ---------- Mutations: Mood ----------
+function setMood(v) {
+  const entry = peekDayEntry(currentDateStr());
+  saveDayField(currentDateStr(), { moodValue: entry.mood.value === v ? null : v });
+}
+function saveMoodNote(val) { debouncedSaveField('moodNote', val); }
+
+// ---------- Mutations: Health ----------
+function adjustWater(delta) {
+  const entry = peekDayEntry(currentDateStr());
+  const max = entry.health.waterGoal + 4;
+  saveDayField(currentDateStr(), {
+    water: Math.max(0, Math.min(max, entry.health.water + delta)),
+    waterGoal: entry.health.waterGoal
+  });
+}
+function saveSleep(val) { saveDayField(currentDateStr(), { sleep: val === '' ? null : parseFloat(val) }); }
+function saveExercise(val) { saveDayField(currentDateStr(), { exercise: val === '' ? null : parseFloat(val) }); }
+
+// ---------- Mutations: Learning ----------
+function saveLearningMinutes(val) { saveDayField(currentDateStr(), { learningMinutes: val === '' ? 0 : parseFloat(val) }); }
+function saveLearningNote(val) { debouncedSaveField('learningNote', val); }
+
+// ---------- Scoring ----------
+function getDayScore(ds) {
+  const e = state.days[ds];
+  if (!e) return null;
+  const parts = [];
+  if (e.tasks && e.tasks.length > 0) parts.push(e.tasks.filter((t) => t.done).length / e.tasks.length);
+  if (state.habits.length > 0) {
+    const done = state.habits.filter((h) => e.habits && e.habits[h.id]).length;
+    parts.push(done / state.habits.length);
+  }
+  if (e.moodValue) parts.push(1);
+  const healthParts = [];
+  if (e.waterGoal > 0 && e.water > 0) healthParts.push(Math.min(e.water / e.waterGoal, 1));
+  if (e.sleep != null) healthParts.push(Math.min(e.sleep / 8, 1));
+  if (e.exercise != null) healthParts.push(e.exercise > 0 ? 1 : 0);
+  if (healthParts.length > 0) parts.push(healthParts.reduce((a, b) => a + b, 0) / healthParts.length);
+  if (e.learningMinutes > 0) parts.push(1);
+  if (parts.length === 0) return 0;
+  return parts.reduce((a, b) => a + b, 0) / parts.length;
+}
+
+// ---------- Icons ----------
+function iconDrop() { return `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2C9 7 5 11 5 15a7 7 0 0014 0c0-4-4-8-7-13z"/></svg>`; }
+function moodFaceSVG(value) {
+  const mouths = { 1: 'M9,17 Q12,13 15,17', 2: 'M9,16 Q12,14.5 15,16', 3: 'M9,15 L15,15', 4: 'M9,14.5 Q12,17 15,14.5', 5: 'M8,13 Q12,19 16,13' };
+  return `<svg viewBox="0 0 24 24" width="26" height="26"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8.5" cy="10" r="1" fill="currentColor"/><circle cx="15.5" cy="10" r="1" fill="currentColor"/><path d="${mouths[value]}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+}
+
+// ---------- Render ----------
+function render() {
+  renderHeader();
+  renderStatRail();
+  renderTasks();
+  renderHabits();
+  renderMood();
+  renderHealth();
+  renderLearning();
+  renderOverview();
+}
+
+function renderHeader() {
+  document.getElementById('dateWeekday').textContent = currentDate.toLocaleDateString(undefined, { weekday: 'long' }).toUpperCase();
+  document.getElementById('dateMain').textContent = currentDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+  const today = startOfDay(new Date());
+  const isToday = currentDate.getTime() === today.getTime();
+  document.getElementById('jumpToday').hidden = isToday;
+  document.getElementById('nextDay').disabled = isToday;
+}
+
+function renderStatRail() {
+  const entry = peekDayEntry(currentDateStr());
+  const doneT = entry.tasks.filter((t) => t.done).length;
+  const doneH = state.habits.filter((h) => entry.habits[h.id]).length;
+  const moodLabel = entry.mood.value ? MOOD_LABELS[entry.mood.value - 1] : '—';
+  document.getElementById('statRail').innerHTML = `
+    <div class="stat"><span class="stat-num">${doneT}/${entry.tasks.length}</span><span class="stat-label">Tasks</span></div>
+    <div class="stat"><span class="stat-num">${doneH}/${state.habits.length}</span><span class="stat-label">Habits</span></div>
+    <div class="stat"><span class="stat-num">${moodLabel}</span><span class="stat-label">Mood</span></div>
+    <div class="stat"><span class="stat-num">${entry.health.water}/${entry.health.waterGoal}</span><span class="stat-label">Water</span></div>
+    <div class="stat"><span class="stat-num">${entry.learning.minutes || 0}m</span><span class="stat-label">Learning</span></div>
+  `;
+}
+
+function renderTasks() {
+  const entry = peekDayEntry(currentDateStr());
+  const list = document.getElementById('taskList');
+  list.innerHTML = entry.tasks.length === 0
+    ? `<li class="empty-state">No tasks logged for this day yet.</li>`
+    : entry.tasks.map((t) => `
+      <li class="task-row ${t.done ? 'done' : ''}" onclick="toggleTask('${t.id}')">
+        <button class="check-btn" onclick="event.stopPropagation();toggleTask('${t.id}')" aria-label="${t.done ? 'Mark as not done' : 'Mark as done'}">${t.done ? '✓' : ''}</button>
+        <span class="task-text">${escapeHtml(t.text)}</span>
+        <button class="remove-btn" onclick="event.stopPropagation();removeTask('${t.id}')" aria-label="Delete task">×</button>
+      </li>`).join('');
+  document.getElementById('taskCount').textContent = `${entry.tasks.filter((t) => t.done).length}/${entry.tasks.length}`;
+}
+
+function renderHabits() {
+  const entry = peekDayEntry(currentDateStr());
+  const list = document.getElementById('habitList');
+  list.innerHTML = state.habits.length === 0
+    ? `<li class="empty-state">No habits yet — add your first below.</li>`
+    : state.habits.map((h) => {
+        const done = !!entry.habits[h.id];
+        const streak = getHabitStreak(h.id);
+        return `<li class="habit-row ${done ? 'done' : ''}" onclick="toggleHabit('${h.id}')">
+          <button class="check-btn" onclick="event.stopPropagation();toggleHabit('${h.id}')" aria-label="${done ? 'Mark as not done' : 'Mark as done'}">${done ? '✓' : ''}</button>
+          <span class="habit-text">${escapeHtml(h.name)}</span>
+          ${streak > 0 ? `<span class="streak-badge" title="${streak} day streak">${streak}</span>` : ''}
+          <button class="remove-btn" onclick="event.stopPropagation();removeHabit('${h.id}')" aria-label="Delete habit">×</button>
+        </li>`;
+      }).join('');
+  document.getElementById('habitCount').textContent = `${state.habits.filter((h) => entry.habits[h.id]).length}/${state.habits.length}`;
+}
+
+function renderMood() {
+  const entry = peekDayEntry(currentDateStr());
+  document.getElementById('moodRow').innerHTML = [1, 2, 3, 4, 5].map((v) => `
+    <button class="mood-btn ${entry.mood.value === v ? 'selected' : ''}" onclick="setMood(${v})" aria-label="${MOOD_LABELS[v - 1]}" title="${MOOD_LABELS[v - 1]}">${moodFaceSVG(v)}</button>
+  `).join('');
+  setValueIfNotFocused('moodNote', entry.mood.note || '');
+
+  let html = '';
+  for (let i = 6; i >= 0; i--) {
+    const dd = new Date(currentDate); dd.setDate(dd.getDate() - i);
+    const ds = formatDate(dd);
+    const e = state.days[ds];
+    const v = e ? (e.moodValue ?? null) : null;
+    const label = dd.toLocaleDateString(undefined, { weekday: 'narrow' });
+    html += `<div class="mood-hist-item" title="${ds}"><span class="mood-hist-label">${label}</span><span style="opacity:${v ? 1 : 0.25}">${v ? moodFaceSVG(v) : '—'}</span></div>`;
+  }
+  document.getElementById('moodHistory').innerHTML = html;
+}
+
+function renderHealth() {
+  const entry = peekDayEntry(currentDateStr());
+  document.getElementById('waterCount').textContent = `${entry.health.water}/${entry.health.waterGoal}`;
+  let glasses = '';
+  for (let i = 1; i <= entry.health.waterGoal; i++) {
+    glasses += `<span class="drop ${i <= entry.health.water ? 'filled' : ''}">${iconDrop()}</span>`;
+  }
+  document.getElementById('waterGlasses').innerHTML = glasses;
+  setValueIfNotFocused('sleepInput', entry.health.sleep ?? '');
+  setValueIfNotFocused('exerciseInput', entry.health.exercise ?? '');
+}
+
+function renderLearning() {
+  const entry = peekDayEntry(currentDateStr());
+  setValueIfNotFocused('learningMinutes', entry.learning.minutes || '');
+  setValueIfNotFocused('learningNote', entry.learning.note || '');
+
+  const items = [];
+  for (let i = 1; i <= 30 && items.length < 4; i++) {
+    const dd = new Date(currentDate); dd.setDate(dd.getDate() - i);
+    const ds = formatDate(dd);
+    const e = state.days[ds];
+    if (e && e.learningNote) items.push({ date: dd, note: e.learningNote });
+  }
+  const logEl = document.getElementById('learningLog');
+  logEl.innerHTML = items.length === 0
+    ? `<p class="empty-state">Past entries will appear here.</p>`
+    : `<p class="log-heading">Recent entries</p>` + items.map((it) => `
+        <div class="log-item"><span class="log-date">${it.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span><span class="log-note">${escapeHtml(it.note)}</span></div>
+      `).join('');
+}
+
+function renderOverview() {
+  const todayStr = formatDate(startOfDay(new Date()));
+  let html = '';
+  for (let i = 13; i >= 0; i--) {
+    const dd = new Date(currentDate); dd.setDate(dd.getDate() - i);
+    const ds = formatDate(dd);
+    const score = getDayScore(ds);
+    const angle = pseudoAngle(ds);
+    const isToday = ds === todayStr;
+    const isViewed = ds === currentDateStr();
+    const opacity = score === null ? 0 : (0.2 + score * 0.8);
+    const full = score !== null && score >= 0.99;
+    const titleText = dd.toLocaleDateString() + (score !== null ? ' · ' + Math.round(score * 100) + '%' : ' · no entries');
+    html += `<button class="stamp ${isViewed ? 'is-viewed' : ''} ${isToday ? 'is-today' : ''}" onclick="jumpToDate('${ds}')" style="--angle:${angle}deg;--fill-opacity:${opacity}" title="${titleText}">
+      <span class="stamp-mark ${full ? 'stamp-full' : ''}"></span>
+      <span class="stamp-date">${dd.getDate()}</span>
+    </button>`;
+  }
+  document.getElementById('stampRow').innerHTML = html;
+}
+</script>
+</body>
+</html>
