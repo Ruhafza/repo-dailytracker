@@ -85,6 +85,14 @@
     letter-spacing: 0.01em; color: var(--cream);
   }
   .date-nav { display: flex; align-items: center; gap: 10px; }
+  .date-picker-wrap { display: flex; align-items: center; }
+  #dateJumpPicker {
+    background: rgba(237,230,211,0.08); border: 1px solid rgba(237,230,211,0.3); color: var(--cream);
+    border-radius: 8px; padding: 5px 8px; font-family: var(--font-mono); font-size: 0.75rem;
+    cursor: pointer; color-scheme: dark; transition: border-color 0.15s ease;
+  }
+  #dateJumpPicker:hover { border-color: var(--brass); }
+  #dateJumpPicker::-webkit-calendar-picker-indicator { filter: invert(0.75) sepia(1) saturate(4) hue-rotate(3deg); cursor: pointer; }
   .nav-btn {
     background: none; border: 1px solid rgba(237,230,211,0.3); color: var(--cream);
     width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
@@ -256,6 +264,27 @@
   .stamp-date { font-family: var(--font-mono); font-size: 0.64rem; color: var(--cream-dim); }
   .stamp.is-viewed .stamp-date { color: var(--brass); font-weight: bold; }
 
+  .history-summary { text-align: center; font-size: 0.78rem; color: var(--cream-dim); margin: -6px 0 18px; }
+  .history-scroll {
+    max-height: 420px; overflow-y: auto; background: var(--paper); color: var(--ink);
+    border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 22px;
+  }
+  .history-group { margin-bottom: 16px; }
+  .history-group:last-child { margin-bottom: 0; }
+  .history-date-label {
+    background: none; border: none; padding: 0; cursor: pointer; text-align: left; display: block;
+    font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--brass-dim); margin-bottom: 6px;
+  }
+  .history-date-label:hover { color: var(--brick); text-decoration: underline; }
+  .history-items { list-style: none; margin: 0; padding: 0; }
+  .history-items li {
+    font-size: 0.88rem; padding: 5px 0 5px 20px; position: relative;
+    border-bottom: 1px dashed var(--paper-line);
+  }
+  .history-items li:last-child { border-bottom: none; }
+  .history-items li::before { content: '✓'; position: absolute; left: 0; color: var(--sage); font-size: 0.8rem; }
+
   .site-footer { text-align: center; padding: 10px 20px 34px; font-size: 0.74rem; color: var(--cream-dim); }
   .site-footer p { margin: 6px 0; }
   .text-link { background: none; border: none; color: var(--brick); text-decoration: underline; cursor: pointer; font-size: inherit; font-family: inherit; padding: 0; }
@@ -304,6 +333,9 @@
         <span class="main-date" id="dateMain"></span>
       </div>
       <button class="nav-btn" id="nextDay" onclick="goNextDay()" aria-label="Next day">▶</button>
+      <label class="date-picker-wrap" title="Jump to a date">
+        <input type="date" id="dateJumpPicker" onchange="jumpToDate(this.value)" aria-label="Jump to a date">
+      </label>
       <button class="ghost-btn" id="jumpToday" onclick="goToday()">Today</button>
     </nav>
   </header>
@@ -382,6 +414,12 @@
   <section class="daybook-overview">
     <h2>Last 14 Days</h2>
     <div class="stamp-row" id="stampRow"></div>
+  </section>
+
+  <section class="daybook-overview" id="taskHistorySection">
+    <h2>Completed Tasks History</h2>
+    <p class="history-summary" id="historySummary"></p>
+    <div class="history-scroll" id="taskHistoryList"></div>
   </section>
 
   <footer class="site-footer">
@@ -464,6 +502,7 @@ let currentUser = null;
 let authMode = 'login';
 let userDocUnsub = null;
 let daysUnsub = null;
+let taskHistoryOlder = []; // completed tasks from before the live sync window, fetched once per session
 const debounceTimers = {};
 const state = { habits: [], days: {} };
 function currentDateStr() { return formatDate(currentDate); }
@@ -626,6 +665,8 @@ function attachFirestoreListeners(uid) {
     state.days = newDays;
     render();
   }, (err) => console.error('Days listener error:', err));
+
+  loadOlderTaskHistory(uid);
 }
 
 function detachFirestoreListeners() {
@@ -635,6 +676,36 @@ function detachFirestoreListeners() {
   daysUnsub = null;
   state.habits = [];
   state.days = {};
+  taskHistoryOlder = [];
+}
+
+// Completed tasks from before the live 120-day window. Fetched once per login rather
+// than kept live, since that history is effectively archival and won't change.
+async function loadOlderTaskHistory(uid) {
+  const { db, collection, query, where, documentId, getDocs } = window.fb;
+  try {
+    const cutoff = formatDate(daysAgo(DAYS_WINDOW));
+    const q = query(collection(db, 'users', uid, 'days'), where(documentId(), '<', cutoff));
+    const snap = await getDocs(q);
+    const older = [];
+    snap.forEach((docSnap) => {
+      const data = docSnap.data();
+      (data.tasks || []).forEach((t) => { if (t.done) older.push({ date: docSnap.id, text: t.text }); });
+    });
+    taskHistoryOlder = older;
+  } catch (e) {
+    console.error('Failed to load older task history:', e);
+    taskHistoryOlder = [];
+  }
+  renderTaskHistory();
+}
+
+function getRecentCompletedTasks() {
+  const recent = [];
+  Object.keys(state.days).forEach((ds) => {
+    (state.days[ds].tasks || []).forEach((t) => { if (t.done) recent.push({ date: ds, text: t.text }); });
+  });
+  return recent;
 }
 
 function saveDayField(ds, partial) {
@@ -679,9 +750,15 @@ function goNextDay() {
   }
 }
 function goToday() { currentDate = startOfDay(new Date()); render(); }
-function jumpToDate(ds) {
+function parseDs(ds) {
   const parts = ds.split('-').map(Number);
-  currentDate = new Date(parts[0], parts[1] - 1, parts[2]);
+  return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+function jumpToDate(ds) {
+  if (!ds) return;
+  const target = parseDs(ds);
+  const today = startOfDay(new Date());
+  currentDate = target.getTime() > today.getTime() ? today : target;
   render();
 }
 
@@ -799,6 +876,7 @@ function render() {
   renderHealth();
   renderLearning();
   renderOverview();
+  renderTaskHistory();
 }
 
 function renderHeader() {
@@ -808,6 +886,11 @@ function renderHeader() {
   const isToday = currentDate.getTime() === today.getTime();
   document.getElementById('jumpToday').hidden = isToday;
   document.getElementById('nextDay').disabled = isToday;
+  const picker = document.getElementById('dateJumpPicker');
+  if (picker && document.activeElement !== picker) {
+    picker.value = currentDateStr();
+    picker.max = formatDate(today);
+  }
 }
 
 function renderStatRail() {
@@ -926,6 +1009,36 @@ function renderOverview() {
     </button>`;
   }
   document.getElementById('stampRow').innerHTML = html;
+}
+
+function renderTaskHistory() {
+  const listEl = document.getElementById('taskHistoryList');
+  const summaryEl = document.getElementById('historySummary');
+  if (!listEl) return;
+
+  const all = [...getRecentCompletedTasks(), ...taskHistoryOlder];
+  summaryEl.textContent = all.length === 0 ? '' : `${all.length} task${all.length === 1 ? '' : 's'} completed all-time`;
+
+  if (all.length === 0) {
+    listEl.innerHTML = `<p class="empty-state">Completed tasks will appear here as you check them off.</p>`;
+    return;
+  }
+
+  const byDate = {};
+  all.forEach((item) => {
+    if (!byDate[item.date]) byDate[item.date] = [];
+    byDate[item.date].push(item.text);
+  });
+  const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+
+  listEl.innerHTML = dates.map((ds) => {
+    const label = parseDs(ds).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    const items = byDate[ds].map((text) => `<li>${escapeHtml(text)}</li>`).join('');
+    return `<div class="history-group">
+      <button class="history-date-label" onclick="jumpToDate('${ds}')">${label}</button>
+      <ul class="history-items">${items}</ul>
+    </div>`;
+  }).join('');
 }
 </script>
 </body>
