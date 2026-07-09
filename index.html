@@ -767,7 +767,7 @@ function debouncedSaveField(fieldName, val, delay) {
   clearTimeout(debounceTimers[fieldName]);
   debounceTimers[fieldName] = setTimeout(() => {
     saveDayField(currentDateStr(), { [fieldName]: val });
-  }, delay || 600);
+  }, delay || 60);
 }
 
 async function confirmResetAllData() {
