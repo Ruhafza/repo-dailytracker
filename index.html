@@ -658,7 +658,7 @@ function updateAccountInfo() {
 }
 
 // ---------- Inactivity auto sign-out ----------
-const INACTIVITY_LIMIT_MS = 10 * 60 * 1000; // 10 minutes
+const INACTIVITY_LIMIT_MS = 1 * 60 * 1000; // 1 minute
 const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
 let lastActivityTime = Date.now();
 let inactivityCheckInterval = null;
@@ -767,7 +767,7 @@ function debouncedSaveField(fieldName, val, delay) {
   clearTimeout(debounceTimers[fieldName]);
   debounceTimers[fieldName] = setTimeout(() => {
     saveDayField(currentDateStr(), { [fieldName]: val });
-  }, delay || 60);
+  }, delay || 600);
 }
 
 async function confirmResetAllData() {
