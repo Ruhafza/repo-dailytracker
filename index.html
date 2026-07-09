@@ -79,10 +79,10 @@
     border-bottom: 1px solid rgba(198,154,78,0.25);
   }
   .brand { display: flex; align-items: center; gap: 10px; }
-  .brand-mark { color: var(--brick); font-size: 1.25rem; }
+  .brand-mark { color: var(--brass); font-size: 1.25rem; }
   .brand h1 {
     font-family: var(--font-display); font-weight: 600; font-size: 1.35rem;
-    letter-spacing: 0.01em; color: var(--brick);
+    letter-spacing: 0.01em; color: var(--cream);
   }
   .date-nav { display: flex; align-items: center; gap: 10px; }
   .date-picker-wrap { display: flex; align-items: center; }
@@ -500,6 +500,7 @@ function friendlyAuthError(err) {
 let currentDate = startOfDay(new Date());
 let currentUser = null;
 let authMode = 'login';
+let signedOutDueToInactivity = false;
 let userDocUnsub = null;
 let daysUnsub = null;
 let taskHistoryOlder = []; // completed tasks from before the live sync window, fetched once per session
@@ -557,11 +558,19 @@ function initApp() {
       renderHeader();
       updateAccountInfo();
       attachFirestoreListeners(user.uid);
+      startInactivityWatcher();
     } else {
       currentUser = null;
       detachFirestoreListeners();
+      stopInactivityWatcher();
       document.getElementById('appRoot').hidden = true;
       document.getElementById('authScreen').hidden = false;
+      if (signedOutDueToInactivity) {
+        signedOutDueToInactivity = false;
+        const errorEl = document.getElementById('authError');
+        errorEl.textContent = 'You were signed out after 10 minutes of inactivity.';
+        errorEl.hidden = false;
+      }
     }
   }, (error) => {
     authResolved = true;
@@ -646,6 +655,40 @@ async function handleLogout() {
 function updateAccountInfo() {
   const el = document.getElementById('accountInfo');
   if (el) el.textContent = currentUser ? `Signed in as ${currentUser.email} · synced to your account` : '';
+}
+
+// ---------- Inactivity auto sign-out ----------
+const INACTIVITY_LIMIT_MS = 10 * 60 * 1000; // 10 minutes
+const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+let lastActivityTime = Date.now();
+let inactivityCheckInterval = null;
+
+function startInactivityWatcher() {
+  lastActivityTime = Date.now();
+  ACTIVITY_EVENTS.forEach((evt) => document.addEventListener(evt, markActivity, { passive: true }));
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  inactivityCheckInterval = setInterval(checkInactivity, 15000);
+}
+function stopInactivityWatcher() {
+  ACTIVITY_EVENTS.forEach((evt) => document.removeEventListener(evt, markActivity));
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
+  clearInterval(inactivityCheckInterval);
+  inactivityCheckInterval = null;
+}
+function markActivity() { lastActivityTime = Date.now(); }
+function handleVisibilityChange() {
+  // Catches up immediately on returning to the tab, rather than waiting for the next poll —
+  // covers the laptop-was-closed-for-20-minutes case reliably.
+  if (document.visibilityState === 'visible') checkInactivity();
+}
+function checkInactivity() {
+  if (Date.now() - lastActivityTime >= INACTIVITY_LIMIT_MS) signOutForInactivity();
+}
+async function signOutForInactivity() {
+  if (!currentUser) return;
+  signedOutDueToInactivity = true;
+  const { auth, signOut } = window.fb;
+  try { await signOut(auth); } catch (e) { console.error(e); }
 }
 
 // ---------- Firebase: Firestore sync ----------
