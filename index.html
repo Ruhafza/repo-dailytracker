@@ -568,7 +568,7 @@ function initApp() {
       if (signedOutDueToInactivity) {
         signedOutDueToInactivity = false;
         const errorEl = document.getElementById('authError');
-        errorEl.textContent = 'You were signed out after 10 minutes of inactivity.';
+        errorEl.textContent = 'You were signed out after 1 minute of inactivity.';
         errorEl.hidden = false;
       }
     }
